@@ -344,7 +344,10 @@ end if;
  
 if upper(gv_input_report_type) = 'LAST DOSE' then   
 build_last_dose_clients;
-build_last_dose; 
+build_last_dose;
+if gv_input_update_flag > 1 then 
+  build_nic_list;
+end if;
 c_merial.email_pkg.PR_SEND_EMAIL('LAST_DOSE@vetinsite.com','jwheeler@vetinsite.com','','LAST_DOSE File HID '||gv_input_hid||' run_id '||gv_input_run_id||' processed','','',null);
 end if;  
  
@@ -3227,7 +3230,6 @@ when others then
 end; 
 
 
-
 procedure build_control (input_run_id in number default null) as  
 hid_to_run number; 
 in_control_file number; 
@@ -3951,9 +3953,9 @@ build_process_log('ERROR','This HID '||gv_input_hid||' location_number '||gv_inp
   raise; 
  
 end build_control; 
- 
- 
 
+ 
+ 
 procedure build_last_dose_clients  as
 split_count number;
 pat_count number;  
@@ -4171,6 +4173,8 @@ when others then
 
 
 end;
+
+
 
 procedure build_last_dose  as
 pat_count number;  
@@ -4554,11 +4558,45 @@ end build_last_dose;
 
 
 
-procedure build_nio_list as
+procedure build_nic_list as
 --newly inactive owners
 begin
+-- this must persist as a real table as it's called every month 
+insert into last_dose_nic (record_type,location_number,client_id, run_id, update_flag )
+select distinct  '2DT' record_type,d.location_number,d.client_id, gv_input_run_id, gv_input_update_flag from
+(select * from last_dose_report_detail d 
+  inner join 
+    (
+      select h_id,location_number,update_flag,max(run_id) run_id 
+      from hid_log 
+      where report_type = 'Last Dose' 
+      and update_flag < gv_input_update_flag --current update flag
+      and h_id = (Select h_id from process_log where flag = 'RUNID' and run_id = gv_input_run_id)--input_run_id
+      group by h_id,location_number,update_flag
+    ) h
+  on h.run_id = d.run_id and canines > 0
+) d
+left join (
+  select * from last_dose_clients c 
+  where run_id = gv_input_run_id --input run_id
+  and canines <> 0
+) a on a.client_id = d.client_id
+where a.client_id is null
+;
 
-
+merge into last_dose_nic a
+using (select distinct 
+'1HD' RECORD_TYPE,
+cast(cooked.log_process_status.convert_current_time as varchar2(20)) location_number,
+gv_input_update_flag client_id,
+gv_input_run_id RUN_ID,
+gv_input_update_flag UPDATE_FLAG
+from dual) b
+on (a.client_id = b.client_id and a.run_id = b.run_id and a.update_flag =b.update_flag) 
+when not matched then
+insert (a.RECORD_TYPE,a.LOCATION_NUMBER,a.CLIENT_ID,a.RUN_ID,a.UPDATE_FLAG)
+values(b.record_type ,b.location_number,b.client_id,b.run_id,b.update_flag)
+;
 
 null;
 end;

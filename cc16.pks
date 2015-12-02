@@ -33,6 +33,7 @@ create or replace PACKAGE cc AS
   procedure build_last_dose_clients;
   procedure build_last_dose;
   procedure build_NSAID_PURCHASE;
+  procedure build_nic_list;
   procedure build_psr_views (input_run_id in number);
   procedure build_control  ( input_run_id in number default null);
   function  last_dose_start (input_hid in number ,input_update_flag in number, input_end_date in date) return date; 
