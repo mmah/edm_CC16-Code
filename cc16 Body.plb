@@ -853,14 +853,14 @@ when others then
   raise; 
  
 end build_psr;
- 
- 
- 
+
+
+
 procedure psr_insert_month_master (input_run_id number) as  
  
 begin
  
-delete from psr_month_master where run_id = input_run_id;   
+--delete from psr_month_master where run_id = input_run_id;   
  
  
  
@@ -1291,7 +1291,6 @@ commit;
  
  
 -- page 5
---delete from psr_t5 where run_id = gv_input_run_id;
 insert into psr_t5 
 --create or replace view psr_t5 as   
 select distinct run_id
@@ -1381,7 +1380,6 @@ commit;
  
  
 -- page 5
---delete from psr_t6 where run_id = gv_input_run_id;
 insert into psr_t6 
 --create or replace view psr_t6 as   
 select distinct run_id
@@ -1470,7 +1468,6 @@ where run_id = gv_input_run_id
 commit;  
  
 -- page 6
---delete from psr_t7 where run_id = gv_input_run_id;
 insert into psr_t7 
 select distinct
 run_id   
@@ -1595,7 +1592,6 @@ commit;
 -- original page 1 
  
  
---delete from psr_t8 where run_id = gv_input_run_id;
 insert into psr_t8 
 --create or replace view psr_t8 as   
 select s.run_id
@@ -1672,7 +1668,6 @@ group by s.run_id,s.h_id
 commit;  
  
  
-delete from psr_t10 where run_id = gv_input_run_id; 
 insert into psr_t10
 --create or replace view psr_t10 as  
 select distinct run_id
@@ -1754,7 +1749,6 @@ commit;
  
  
  
-delete from psr_t11 where run_id = gv_input_run_id; 
 insert into psr_t11
 --create or replace view psr_t11 as  
 select s.run_id
@@ -1786,7 +1780,6 @@ commit;
  
  
  
-delete from psr_t12 where run_id = gv_input_run_id; 
 insert into psr_t12
 --create or replace view psr_t12 as  
 select d.run_id,d.h_id,d.location_number,d.end_date,d.report_name,d.species
@@ -1870,7 +1863,6 @@ commit;
  
  
  
-delete from psr_t13a where run_id = gv_input_run_id;
 insert into psr_t13a   
 select run_id,h_id,location_number,end_date,report_name,species , dose_rec, doses, patients--, row_order
 , case when sum(pct_pats) over(partition by run_id, report_name,species) > 1 and row_order = 1 then pct_pats - (sum(pct_pats) over(partition by run_id, report_name,species)-1) 
@@ -1940,7 +1932,6 @@ where run_id = gv_input_run_id;
  
 commit;  
  
-delete from psr_t13 where run_id = gv_input_run_id; 
 insert into psr_t13
 select a.run_id
 ,a.h_id  
@@ -2054,7 +2045,6 @@ where a.run_id = gv_input_run_id
 commit;  
  
  
-delete from psr_t14 where run_id = gv_input_run_id; 
 insert into psr_t14
 --create or replace view psr_t14 as  
 select s.run_id,s.h_id,s.location_number,s.end_date,s.report_name,s.species
@@ -4562,8 +4552,9 @@ procedure build_nic_list as
 --newly inactive owners
 begin
 -- this must persist as a real table as it's called every month 
-insert into last_dose_nic (record_type,location_number,client_id, run_id, update_flag )
-select distinct  '2DT' record_type,d.location_number,d.client_id, gv_input_run_id, gv_input_update_flag from
+merge into last_dose_nic a using 
+--insert into last_dose_nic (record_type,location_number,client_id, run_id, update_flag )
+(select distinct  '2DT' record_type,d.location_number,d.client_id, gv_input_ccyear run_id, gv_input_update_flag update_flag from
 (select * from last_dose_report_detail d 
   inner join 
     (
@@ -4581,21 +4572,46 @@ left join (
   where run_id = gv_input_run_id --input run_id
   and canines <> 0
 ) a on a.client_id = d.client_id
-where a.client_id is null
+where a.client_id is null) b
+on ( a.client_id = b.client_id and a.update_flag = b.update_flag and a.run_id = b.run_id)
+when not matched then 
+insert  (a.record_type,a.location_number,a.client_id, a.run_id, a.update_flag )
+values(b.record_type,b.location_number,b.client_id, b.run_id, b.update_flag )
 ;
 
-merge into last_dose_nic a
+merge into last_dose_nic_report_header a
 using (select distinct 
 '1HD' RECORD_TYPE,
-cast(cooked.log_process_status.convert_current_time as varchar2(20)) location_number,
-gv_input_update_flag client_id,
-gv_input_run_id RUN_ID,
+cast(to_char(cooked.log_process_status.convert_current_time,'mm/dd/yyyy') as varchar2(20)) creation_date,
+gv_input_ccyear report_year,
 gv_input_update_flag UPDATE_FLAG
 from dual) b
-on (a.client_id = b.client_id and a.run_id = b.run_id and a.update_flag =b.update_flag) 
+on (a.report_year = b.report_year and a.update_flag =b.update_flag) 
+when matched then
+update set a.creation_date = b.creation_date
 when not matched then
-insert (a.RECORD_TYPE,a.LOCATION_NUMBER,a.CLIENT_ID,a.RUN_ID,a.UPDATE_FLAG)
-values(b.record_type ,b.location_number,b.client_id,b.run_id,b.update_flag)
+insert (a.RECORD_TYPE,a.creation_date,a.report_year,a.UPDATE_FLAG)
+values(b.record_type ,b.creation_date,b.report_year,b.update_flag)
+;
+
+
+merge into last_dose_nic_report_trailer a
+using (select distinct 
+'3TR' RECORD_TYPE,
+count(*)+2 record_count,
+run_id report_year,
+update_flag UPDATE_FLAG
+from last_dose_nic 
+where update_flag = gv_input_update_flag
+and run_id = gv_input_ccyear
+and record_type = '2DT'
+group by run_id,update_flag) b
+on (a.report_year = b.report_year and a.update_flag =b.update_flag) 
+when matched then
+update set a.record_count = b.record_count
+when not matched then
+insert (a.RECORD_TYPE,a.record_count,a.report_year,a.UPDATE_FLAG)
+values(b.record_type ,b.record_count,b.report_year,b.update_flag)
 ;
 
 null;

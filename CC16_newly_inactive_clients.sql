@@ -51,13 +51,37 @@ select cc16.CC.RUN_CLINIC(cc16.cc.init(9791,12359,'Last Dose',sysdate,2)) from d
 select cc16.CC.RUN_CLINIC(cc16.cc.init(7543,11448,'Last Dose',sysdate,2)) from dual;
 select * from process_log order by run_date desc;
 
-select * from last_dose_nic;
+create view last_dose_nic_report as
+select RECORD_TYPE,
+CREATION_DATE,
+cast(UPDATE_FLAG as varchar2(20)) client_id,
+REPORT_YEAR cc_YEAR,
+REPORT_YEAR ,
+UPDATE_FLAG 
+from last_dose_nic_report_header
+union
+select RECORD_TYPE,
+LOCATION_NUMBER,
+CLIENT_ID,
+null,
+RUN_ID,
+UPDATE_FLAG 
+from last_dose_nic
+union
+select RECORD_TYPE,
+RECORD_COUNT,
+null,
+null,
+REPORT_YEAR,
+UPDATE_FLAG from last_dose_nic_report_trailer;
+grant select on last_dose_nic_report to edm_user;
+
 
 select '1HD' RECORD_TYPE,
-'12/02/2015' LOCATION_NUMBER,
+to_char('12/02/2015') LOCATION_NUMBER,
 cast(update_flag as varchar2(20)) CLIENT_ID,
-'2016' RUN_ID,
-'2'  UPDATE_FLAG
+2016 RUN_ID,
+2  UPDATE_FLAG
 from last_dose_nic
 union
 select RECORD_TYPE,
@@ -72,3 +96,10 @@ where client_id in (133330344) and h_id = 11325;
 select * from cooked.patient c
 --LEFT JOIN Vetstreet.Pgsql_Pms_Client_Code_Lkup Ccl ON C.Pms_Client_Code_Id = Ccl.Id 
 where client_id in (133330344) and h_id = 11325;
+
+
+create table last_dose_nic_report_trailer (record_type varchar2(3),record_count varchar2(20),report_year number,update_flag number);
+alter table last_dose_nic_report_trailer add primary key (report_year,update_flag);
+
+create table last_dose_nic_report_header (record_type varchar2(3),creation_date varchar2(20),update_flag number,report_year number);
+alter table last_dose_nic_report_header add primary key (report_year,update_flag);
