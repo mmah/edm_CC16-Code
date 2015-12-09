@@ -3224,3 +3224,36 @@ ALTER TABLE CC16.PSR_PRODUCT_MASTER ADD CONSTRAINT PSR_PRODUCT_MASTER_PK PRIMARY
   TABLESPACE C_WORKSPACE ;
  
 
+
+ CREATE OR REPLACE FORCE VIEW PSR_META (RUN_ID, H_ID, ACCOUNT_NUMBER, LOCATION_NUMBER, END_DATE, REPORT_PERIOD, CLINIC_NAME, CLINIC_CITY, CLINIC_STATE, RUN_DATE) AS 
+  select 
+ hl.run_id
+,hl.h_id
+,a.account_number
+,a.location_number
+,hl.end_date
+,to_char(add_months(end_date,-11),'Mon ''yy')||' - '||to_char(end_Date,'Mon ''yy') report_period
+,a.clinic_name
+,a.ship_city clinic_city
+,a.ship_state clinic_state
+,hl.run_date
+from accounts a 
+inner join hid_log hl on hl.location_number = a.location_number and hl.h_id = a.hid
+where hl.report_type in ('PSR','PSR-B');
+ 
+
+grant select on psr_t1 to edm_user;
+grant select on psr_t10 to edm_user;
+grant select on pst_t11 to edm_user;
+grant select on psr_t12 to edm_user;
+grant select on psr_t13 to edm_user;
+grant select on psr_t13a to edm_user;
+grant select on psr_t14 to edm_user;
+grant select on psr_t2 to edm_user;
+grant select on pst_t3 to edm_user;
+grant select on psr_t4 to edm_user;
+grant select on psr_t5 to edm_user;
+grant select on psr_t6 to edm_user;
+grant select on pst_t7 to edm_user;
+grant select on psr_t8 to edm_user;
+grant select on psr_meta to edm_user with grant option;
